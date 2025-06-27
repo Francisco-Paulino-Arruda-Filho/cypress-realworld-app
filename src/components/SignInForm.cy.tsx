@@ -2,6 +2,14 @@ import { interpret } from "xstate";
 import { MemoryRouter } from "react-router-dom";
 import SignInForm from "./SignInForm";
 import { authMachine } from "../machines/authMachine";
+import {
+  getUsernameInput,
+  getPasswordInput,
+  getSubmitButton,
+  getRememberMeCheckbox,
+  getErrorAlert,
+  getSignUpLink,
+} from "../../cypress/e2e/elements/signin.elements";
 
 describe("SignInForm", () => {
   let authService;
@@ -35,14 +43,73 @@ describe("SignInForm", () => {
         <SignInForm authService={authService} />
       </MemoryRouter>
     );
-    cy.get("[data-test*=signin-username]").type("Katharina_Bernier");
-    cy.get("[data-test*=signin-password]").type("s3cret");
-    cy.get("[data-test*=signin-submit]").click(); //.should("be.disabled");
+    getUsernameInput().type("Katharina_Bernier");
+    getPasswordInput().get("[data-test*=signin-password]").type("s3cret");
+    getSubmitButton().get("[data-test*=signin-submit]").click(); //.should("be.disabled");
 
     cy.wait("@loginPost");
 
     cy.get("[data-test*=signin-error]").should("not.exist");
 
     //expect(authService.state.value).to.equal("authorized");
+  });
+  it("shows an error when only the username is incorrect", () => {
+    cy.intercept("POST", "http://localhost:3001/login", {
+      statusCode: 401,
+      body: { error: "Invalid credentials" },
+    }).as("loginInvalidUsername");
+
+    cy.mount(
+      <MemoryRouter>
+        <SignInForm authService={authService} />
+      </MemoryRouter>
+    );
+
+    getUsernameInput().type("wrong_user");
+    getPasswordInput().type("s3cret"); // senha correta
+    getSubmitButton().click();
+
+    cy.wait("@loginInvalidUsername");
+    cy.contains("Username or password is invalid").should("exist");
+  });
+
+  it("shows an error when only the password is incorrect", () => {
+    cy.intercept("POST", "http://localhost:3001/login", {
+      statusCode: 401,
+      body: { error: "Invalid credentials" },
+    }).as("loginInvalidPassword");
+
+    cy.mount(
+      <MemoryRouter>
+        <SignInForm authService={authService} />
+      </MemoryRouter>
+    );
+
+    getUsernameInput().type("Katharina_Bernier"); // username correto
+    getPasswordInput().type("wrong_pass");
+    getSubmitButton().click();
+
+    cy.wait("@loginInvalidPassword");
+    cy.contains("Username or password is invalid").should("exist");
+  });
+
+  it("shows an error when both username and password are incorrect", () => {
+    cy.intercept("POST", "http://localhost:3001/login", {
+      statusCode: 401,
+      body: { error: "Invalid credentials" },
+    }).as("loginBothInvalid");
+
+    cy.mount(
+      <MemoryRouter>
+        <SignInForm authService={authService} />
+      </MemoryRouter>
+    );
+
+    getUsernameInput().type("wrong_user");
+    getPasswordInput().type("wrong_pass");
+    getSubmitButton().click();
+
+    cy.wait("@loginBothInvalid");
+    cy.contains("Username or password is invalid").should("exist");
   });
 });
